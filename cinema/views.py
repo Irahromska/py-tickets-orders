@@ -34,7 +34,6 @@ class ParseParamsMixin:
         return [int(str_id) for str_id in query_string.split(",")]
 
 
-
 class GenreViewSet(viewsets.ModelViewSet):
     pagination_class = None
     queryset = Genre.objects.all()
