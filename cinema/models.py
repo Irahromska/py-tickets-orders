@@ -28,7 +28,7 @@ class Actor(models.Model):
     last_name = models.CharField(max_length=255)
 
     def __str__(self):
-        return self.first_name + " " + self.last_name
+        return f"{self.first_name} {self.last_name}"
 
     @property
     def full_name(self):
@@ -58,7 +58,7 @@ class MovieSession(models.Model):
         ordering = ["-show_time"]
 
     def __str__(self):
-        return self.movie.title + " " + str(self.show_time)
+        return f"{self.movie.title} {self.show_time}"
 
 
 class Order(models.Model):
@@ -85,19 +85,17 @@ class Ticket(models.Model):
     seat = models.IntegerField()
 
     def __str__(self):
-        return (
-            f"{str(self.movie_session)} (row: {self.row}, seat: {self.seat})"
-        )
+        return f"{self.movie_session} (row: {self.row}, seat: {self.seat})"
 
     class Meta:
         unique_together = ("movie_session", "row", "seat")
 
     @staticmethod
     def validate_seat(
-            movie_session: MovieSession,
-            row: int,
-            seat: int,
-            error_raise
+        movie_session: MovieSession,
+        row: int,
+        seat: int,
+        error_raise=ValidationError,
     ):
         for ticket_attr_value, ticket_attr_name, cinema_hall_attr_name in [
             (row, "row", "rows"),
@@ -111,7 +109,6 @@ class Ticket(models.Model):
                     {
                         ticket_attr_name: f"{ticket_attr_name} "
                         f"number must be in available range: "
-                        f"(1, {cinema_hall_attr_name}): "
                         f"(1, {count_attrs})"
                     }
                 )
@@ -121,7 +118,7 @@ class Ticket(models.Model):
             movie_session=self.movie_session,
             row=self.row,
             seat=self.seat,
-            error_raise=ValueError
+            error_raise=ValidationError   # 👈 змінили ValueError → ValidationError
         )
 
     def save(
@@ -132,6 +129,4 @@ class Ticket(models.Model):
         update_fields=None,
     ):
         self.full_clean()
-        super(Ticket, self).save(
-            force_insert, force_update, using, update_fields
-        )
+        super().save(force_insert, force_update, using, update_fields)

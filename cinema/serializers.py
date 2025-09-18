@@ -82,15 +82,13 @@ class MovieSessionListSerializer(MovieSessionSerializer):
         )
 
     def get_cinema_hall_capacity(self, obj):
-        if hasattr(obj.cinema_hall, "capacity"):
-            return obj.cinema_hall.capacity
+        return obj.cinema_hall.capacity
 
     def get_tickets_available(self, obj):
         if hasattr(obj, "tickets_available"):
             return obj.tickets_available
         return (
-            obj.cinema_hall.rows
-            * obj.cinema_hall.seats_in_row
+            obj.cinema_hall.rows * obj.cinema_hall.seats_in_row
             - obj.tickets.count()
         )
 
@@ -102,8 +100,8 @@ class TakenPlaceSerializer(serializers.ModelSerializer):
 
 
 class MovieSessionDetailSerializer(MovieSessionSerializer):
-    movie = MovieListSerializer(many=False, read_only=True)
-    cinema_hall = CinemaHallSerializer(many=False, read_only=True)
+    movie = MovieListSerializer(read_only=True)
+    cinema_hall = CinemaHallSerializer(read_only=True)
     taken_places = TakenPlaceSerializer(
         source="tickets", many=True, read_only=True
     )
@@ -119,23 +117,32 @@ class TicketSerializer(serializers.ModelSerializer):
         fields = ("id", "movie_session", "row", "seat")
 
     def validate(self, attrs):
+        # Перевірка коректності місця (ряд/місце в залі)
         Ticket.validate_seat(
             movie_session=attrs["movie_session"],
             row=attrs["row"],
             seat=attrs["seat"],
             error_raise=serializers.ValidationError,
         )
+
+        if Ticket.objects.filter(
+            movie_session=attrs["movie_session"],
+            row=attrs["row"],
+            seat=attrs["seat"],
+        ).exists():
+            raise serializers.ValidationError(
+                {"seat": "This seat is already taken."}
+            )
+
         return attrs
 
 
 class TicketListSerializer(TicketSerializer):
-    movie_session = MovieSessionListSerializer(
-        many=False, read_only=True
-    )
+    movie_session = MovieSessionListSerializer(read_only=True)
 
 
 class OrderSerializer(serializers.ModelSerializer):
-    tickets = TicketSerializer(many=True, read_only=False)
+    tickets = TicketSerializer(many=True)
 
     class Meta:
         model = Order
@@ -144,17 +151,13 @@ class OrderSerializer(serializers.ModelSerializer):
     @transaction.atomic
     def create(self, validated_data):
         tickets_data = validated_data.pop("tickets")
-        order = Order.objects.create(
-            user=self.context["request"].user
+        order = Order.objects.create(user=validated_data.pop("user"))
+
+        Ticket.objects.bulk_create(
+            [Ticket(order=order, **ticket) for ticket in tickets_data]
         )
-
-        for ticket_data in tickets_data:
-            Ticket.objects.create(order=order, **ticket_data)
-
         return order
 
 
 class OrderListSerializer(OrderSerializer):
-    tickets = TicketListSerializer(
-        many=True, read_only=True
-    )
+    tickets = TicketListSerializer(many=True, read_only=True)
